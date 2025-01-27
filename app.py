@@ -1,48 +1,46 @@
+
+#postgresql://trail_host_user:ED3g8DOGgiXXgoiyMIZIIJSF8fn5qI5N@dpg-cubr6sd6l47c73a46fk0-a.oregon-postgres.render.com/trail_host
+#postgresql://trail_host_user:ED3g8DOGgiXXgoiyMIZIIJSF8fn5qI5N@dpg-cubr6sd6l47c73a46fk0-a/trail_host
+
 from flask import Flask, render_template, request, redirect, url_for, flash
-import mysql.connector
+import psycopg2
+from psycopg2 import sql
 
 app = Flask(__name__)
 app.secret_key = '76y3fcklas12798hg783hbbifb5b89'
 
-mydb = mysql.connector.connect(
-    host = "localhost",
-    user = "root",
-    password = "lasya@23#",
-    database = "mywebsitedata"
-)
-mycursor = mydb.cursor()
 
-def create_table():
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS UserCred (
-        UserID INT AUTO_INCREMENT PRIMARY KEY,
-        EmailID VARCHAR(255) NOT NULL UNIQUE,
-        Password VARCHAR(255) NOT NULL,
-        ConfirmPassword VARCHAR(255) NOT NULL,
-        CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """
-    mycursor.execute(create_table_query)
-    print("UserCred table created (if it didn't already exist).")
-
-#create_table()
+def get_db_connection():
+    return psycopg2.connect(
+        dbname="trail_host",
+        user="trail_host_user",
+        password="ED3g8DOGgiXXgoiyMIZIIJSF8fn5qI5N",
+        host="dpg-cubr6sd6l47c73a46fk0-a.oregon-postgres.render.com",
+        port="5432"
+    )
 
 @app.route('/')
 def home():
     return render_template('home.html')
 
-@app.route('/login', methods = ['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
 
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
         query = "SELECT * FROM UserCred WHERE EmailID = %s"
-        mycursor.execute(query, (username, ))
-        result = mycursor.fetchone()
+        cursor.execute(query, (username,))
+        result = cursor.fetchone()
+
+        cursor.close()
+        connection.close()
 
         if result and result[2] == password:
-            flash("login successful!", "success")
+            flash("Login successful!", "success")
             return render_template('blank.html')
         else:
             flash("Invalid username or password!", "danger")
@@ -59,21 +57,31 @@ def signup():
             flash("All fields are required", "error")
             return redirect(url_for('signup'))
 
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
         query = "SELECT * FROM UserCred WHERE EmailID = %s"
-        mycursor.execute(query, (email,))
-        result = mycursor.fetchone()
+        cursor.execute(query, (email,))
+        result = cursor.fetchone()
 
         if result:
             flash("Email already exists! Use another email", "error")
+            cursor.close()
+            connection.close()
             return redirect(url_for('signup'))
 
         if password != confirm_password:
             flash("Passwords don't match. Please recheck.", "error")
+            cursor.close()
+            connection.close()
             return redirect(url_for('signup'))
 
         query = "INSERT INTO UserCred (EmailID, Password, ConfirmPassword) VALUES (%s, %s, %s)"
-        mycursor.execute(query, (email, password, confirm_password))
-        mydb.commit()
+        cursor.execute(query, (email, password, confirm_password))
+        connection.commit()
+
+        cursor.close()
+        connection.close()
 
         flash("Signup successful", "success")
         return redirect(url_for('success'))
@@ -81,11 +89,9 @@ def signup():
     # Render the signup form for GET requests
     return render_template('signup.html')
 
-
 @app.route('/success')
 def success():
     return render_template('success.html')
 
 if __name__ == '__main__':
-    app.run(debug = True)
-
+    app.run(debug=True)
